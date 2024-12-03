@@ -2,7 +2,7 @@
 --su - postgres
 --dropdb bardoc
 -- createdb bardoc
-
+/*
 CREATE DATABASE bardoc
     WITH
     OWNER = postgres
@@ -13,16 +13,18 @@ CREATE DATABASE bardoc
     TABLESPACE = pg_default
     CONNECTION LIMIT = -1
     IS_TEMPLATE = False;
-
+*/
 --\c bardoc
-
-drop table if exists prod.product_vers;
-drop table if exists prod.product;
 
 drop table if exists doc.content;
 drop table if exists doc.doc_file;
 drop table if exists doc.doc_vers;
+drop table if exists prod.prod_vers;
+
 drop table if exists doc.doc;
+
+drop table if exists prod.prod;
+
 drop table if exists doc.tag;
 
 drop schema if exists prod;
@@ -40,54 +42,217 @@ create schema prod;
 --##                       Продукт
 --##############################################################
 
-CREATE TABLE IF NOT EXISTS prod.product
+CREATE TABLE IF NOT EXISTS prod.prod
 (
-    prod_id integer NOT NULL DEFAULT nextval('prod.product_prod_id_seq'::regclass),
+    prod_id serial NOT NULL,
     prod_name character varying(256) COLLATE pg_catalog."default" NOT NULL,
     prod_code character varying(100) COLLATE pg_catalog."default" NOT NULL,
     prod_created_at timestamp without time zone DEFAULT now(),
     prod_modified_at timestamp without time zone DEFAULT now()
 ) TABLESPACE pg_default;
 
-COMMENT ON TABLE prod.product IS 'Продукт.';
+COMMENT ON TABLE prod.prod IS 'Продукт.';
 
-ALTER TABLE IF EXISTS prod.product
-    ADD CONSTRAINT product_pkey PRIMARY KEY (prod_id);
+ALTER TABLE IF EXISTS prod.prod
+    ADD CONSTRAINT prod_pkey PRIMARY KEY (prod_id);
+ALTER TABLE IF EXISTS prod.prod
+    ADD CONSTRAINT prod_prod_code_key UNIQUE (prod_code);
+ALTER TABLE IF EXISTS prod.prod
+    ADD CONSTRAINT prod_prod_name_key UNIQUE (prod_name);
 
-ALTER TABLE IF EXISTS prod.product
-    ADD CONSTRAINT product_prod_code_key UNIQUE (prod_code);
+--########################################################################################################################################
+--Добавить
+CREATE OR REPLACE FUNCTION prod.prod_i(IN _prod_name character varying, IN _prod_code character varying)
+    RETURNS integer AS 
+$BODY$
+DECLARE
+	lI_id 	integer := -1;
+BEGIN
+	insert into prod.prod(prod_name, prod_code) values ($1, $2) returning prod_id into lI_id;
+	return lI_id;
+EXCEPTION WHEN unique_violation THEN
+	IF(SQLERRM ~* 'prod_prod_code_key')THEN
+		RAISE NOTICE 'Product with this code already exists';
+	ELSIF(SQLERRM ~* 'prod_prod_name_key')THEN
+		RAISE NOTICE 'Product with this name already exists';
+	ELSE
+		RAISE NOTICE 'Illegal operation: %', SQLERRM;
+	END IF;
+	return lI_id;
+END;
+$BODY$
+LANGUAGE 'plpgsql'
+SECURITY DEFINER;
 
-ALTER TABLE IF EXISTS prod.product
-    ADD CONSTRAINT product_prod_name_key UNIQUE (prod_name);
+ALTER FUNCTION prod.prod_i(character varying, character varying)
+    OWNER TO postgres;
+COMMENT ON FUNCTION prod.prod_i(character varying, character varying)
+    IS 'Добавить продукт';
+
+--########################################################################################################################################
+--Обновить
+CREATE OR REPLACE FUNCTION prod.prod_u(IN _prod_id integer, IN _prod_name character varying, IN _prod_code character varying)
+    RETURNS integer AS 
+$BODY$
+DECLARE
+	lI_id 	integer := -1;
+BEGIN
+	update prod.prod
+	set prod_name = $2
+	  , prod_code = $3
+	where prod_id = $1;
+	return _prod_id;
+EXCEPTION WHEN unique_violation THEN
+	IF(SQLERRM ~* 'prod_prod_code_key')THEN
+		RAISE NOTICE 'Product with this code already exists';
+	ELSIF(SQLERRM ~* 'prod_prod_name_key')THEN
+		RAISE NOTICE 'Product with this name already exists';
+	ELSE
+		RAISE NOTICE 'Illegal operation: %', SQLERRM;
+	END IF;
+	return lI_id;
+END;
+$BODY$
+LANGUAGE 'plpgsql'
+SECURITY DEFINER;
+
+ALTER FUNCTION prod.prod_u(integer, character varying, character varying)
+    OWNER TO postgres;
+COMMENT ON FUNCTION prod.prod_u(integer, character varying, character varying)
+    IS 'Обновить продукт';
+
+--########################################################################################################################################
+--Удалить
+CREATE OR REPLACE FUNCTION prod.prod_d(IN _prod_id integer)
+    RETURNS integer AS 
+$BODY$
+DECLARE
+	lI_id 	integer := -1;
+BEGIN
+	DELETE FROM prod.prod
+	where prod_id = $1;
+	return _prod_id;
+EXCEPTION WHEN OTHERS THEN
+	RAISE NOTICE 'Illegal operation: %', SQLERRM;
+	return lI_id;
+END;
+$BODY$
+LANGUAGE 'plpgsql'
+SECURITY DEFINER;
+
+ALTER FUNCTION prod.prod_d(integer)
+    OWNER TO postgres;
+COMMENT ON FUNCTION prod.prod_d(integer)
+    IS 'Удалить продукт';
 
 --##############################################################
 --##                    Версия продукта
 --##############################################################
 
-CREATE TABLE IF NOT EXISTS prod.product_vers
+CREATE TABLE IF NOT EXISTS prod.prod_vers
 (
-    prod_vers_id integer NOT NULL DEFAULT nextval('prod.product_vers_prod_vers_id_seq'::regclass),
+    prod_vers_id serial NOT NULL,
     prod_id integer NOT NULL,
-    prod_vers_name character varying(256) COLLATE pg_catalog."default" NOT NULL,
     prod_vers_num character varying(100) COLLATE pg_catalog."default" NOT NULL,
+    prod_vers_desc character varying(256) COLLATE pg_catalog."default" NOT NULL,
     prod_vers_created_at timestamp without time zone DEFAULT now(),
     prod_vers_modified_at timestamp without time zone DEFAULT now()
 ) TABLESPACE pg_default;
 
-COMMENT ON TABLE prod.product_vers IS 'Версия продукта.';
+COMMENT ON TABLE prod.prod_vers IS 'Версия продукта.';
 
-ALTER TABLE IF EXISTS prod.product_vers
-    ADD CONSTRAINT product_vers_pkey PRIMARY KEY (prod_vers_id);
+ALTER TABLE IF EXISTS prod.prod_vers
+    ADD CONSTRAINT prod_vers_pkey PRIMARY KEY (prod_vers_id);
 
-ALTER TABLE IF EXISTS prod.product_vers
-    ADD CONSTRAINT product_vers_prod_id_fkey FOREIGN KEY (prod_id)
-    REFERENCES prod.product (prod_id) MATCH SIMPLE;
+ALTER TABLE IF EXISTS prod.prod_vers
+    ADD CONSTRAINT prod_vers_prod_id_fkey FOREIGN KEY (prod_id)
+    REFERENCES prod.prod (prod_id) MATCH SIMPLE;
 
-ALTER TABLE IF EXISTS prod.product_vers
-    ADD CONSTRAINT product_vers_prod_vers_name_key UNIQUE (prod_vers_name);
+ALTER TABLE IF EXISTS prod.prod_vers
+    ADD CONSTRAINT prod_vers_prod_vers_num_key UNIQUE (prod_vers_num);
 
-ALTER TABLE IF EXISTS prod.product_vers
-    ADD CONSTRAINT product_vers_prod_vers_num_key UNIQUE (prod_vers_num);
+
+--########################################################################################################################################
+--Добавить
+CREATE OR REPLACE FUNCTION prod.prod_vers_i(IN _prod_vers_num character varying, IN _prod_vers_desc character varying)
+    RETURNS integer AS 
+$BODY$
+DECLARE
+	lI_id 	integer := -1;
+BEGIN
+	insert into prod.prod_vers(prod_vers_num, prod_vers_desc) values ($1, $2) returning prod_vers_id into lI_id;
+	return lI_id;
+EXCEPTION WHEN unique_violation THEN
+	IF(SQLERRM ~* 'prod.prod_vers_prod_vers_num_key')THEN
+		RAISE NOTICE 'Version for this product already exists.';
+	ELSE
+		RAISE NOTICE 'Illegal operation: %', SQLERRM;
+	END IF;
+	return lI_id;
+END;
+$BODY$
+LANGUAGE 'plpgsql'
+SECURITY DEFINER;
+
+ALTER FUNCTION prod.prod_vers_i(character varying, character varying)
+    OWNER TO postgres;
+COMMENT ON FUNCTION prod.prod_vers_i(character varying, character varying)
+    IS 'Добавить версию продукта';
+
+--########################################################################################################################################
+--Обновить
+CREATE OR REPLACE FUNCTION prod.prod_vers_u(IN _prod_vers_id integer, IN _prod_vers_num character varying, IN _prod_vers_desc character varying)
+    RETURNS integer AS 
+$BODY$
+DECLARE
+	lI_id 	integer := -1;
+BEGIN
+	update prod.prod_vers
+	set prod_vers_num = $2
+	  , prod_vers_desc = $3
+	where prod_vers_id = $1;
+	return _prod_vers_id;
+EXCEPTION WHEN unique_violation THEN
+	IF(SQLERRM ~* 'prod.prod_vers_prod_vers_num_key')THEN
+		RAISE NOTICE 'Version for this product already exists.';
+	ELSE
+		RAISE NOTICE 'Illegal operation: %', SQLERRM;
+	END IF;
+	return lI_id;
+END;
+$BODY$
+LANGUAGE 'plpgsql'
+SECURITY DEFINER;
+
+ALTER FUNCTION prod.prod_vers_u(integer, character varying, character varying)
+    OWNER TO postgres;
+COMMENT ON FUNCTION prod.prod_vers_u(integer, character varying, character varying)
+    IS 'Обновить версию продукта';
+
+--########################################################################################################################################
+--Удалить
+CREATE OR REPLACE FUNCTION prod.prod_vers_d(IN _prod_vers_id integer)
+    RETURNS integer AS 
+$BODY$
+DECLARE
+	lI_id 	integer := -1;
+BEGIN
+	DELETE FROM prod.prod_vers
+	where prod_vers_id = $1;
+	return _prod_vers_id;
+EXCEPTION WHEN OTHERS THEN
+	RAISE NOTICE 'Illegal operation: %', SQLERRM;
+	return lI_id;
+END;
+$BODY$
+LANGUAGE 'plpgsql'
+SECURITY DEFINER;
+
+ALTER FUNCTION prod.prod_vers_d(integer)
+    OWNER TO postgres;
+COMMENT ON FUNCTION prod.prod_vers_d(integer)
+    IS 'Удалить версию продукта';
+
 
 --####################################################################################################################
 --####################################################################################################################
@@ -103,10 +268,10 @@ create schema doc;
 
 CREATE TABLE IF NOT EXISTS doc.doc
 (
-    doc_id integer NOT NULL DEFAULT nextval('doc.doc_doc_id_seq'::regclass),
+    doc_id serial NOT NULL,
     prod_id integer NOT NULL,
     doc_name character varying(256) COLLATE pg_catalog."default" NOT NULL,
-    doc_descr character varying(1000) COLLATE pg_catalog."default",
+    doc_desc character varying(1000) COLLATE pg_catalog."default",
     doc_created_at timestamp without time zone DEFAULT now(),
     doc_modified_at timestamp without time zone DEFAULT now()
 ) TABLESPACE pg_default;
@@ -116,9 +281,13 @@ ALTER TABLE IF EXISTS doc.doc
 
 ALTER TABLE IF EXISTS doc.doc
     ADD CONSTRAINT doc_prod_id_fkey FOREIGN KEY (prod_id)
-    REFERENCES prod.product (prod_id) MATCH SIMPLE;
+    REFERENCES prod.prod (prod_id) MATCH SIMPLE;
 
+ALTER TABLE IF EXISTS doc.doc
+    ADD CONSTRAINT doc.doc_prod_id_doc_name_key UNIQUE (prod_id, doc_name);
+	
 COMMENT ON TABLE doc.doc IS 'Документация.';
+
 
 --##############################################################
 --##                 Версия документации
@@ -126,7 +295,7 @@ COMMENT ON TABLE doc.doc IS 'Документация.';
 
 CREATE TABLE IF NOT EXISTS doc.doc_vers
 (
-    doc_vers_id integer NOT NULL DEFAULT nextval('doc.doc_vers_doc_vers_id_seq'::regclass),
+    doc_vers_id serial NOT NULL,
     doc_id integer NOT NULL,
     prod_vers_id integer NOT NULL,
     doc_vers_num character varying(100) COLLATE pg_catalog."default" NOT NULL,
@@ -140,7 +309,7 @@ ALTER TABLE IF EXISTS doc.doc_vers
 
 ALTER TABLE IF EXISTS doc.doc_vers
     ADD CONSTRAINT doc_vers_prod_vers_id_fkey FOREIGN KEY (prod_vers_id)
-    REFERENCES prod.product_vers (prod_vers_id) MATCH SIMPLE;
+    REFERENCES prod.prod_vers (prod_vers_id) MATCH SIMPLE;
 
 ALTER TABLE IF EXISTS doc.doc_vers
     ADD CONSTRAINT doc_vers_doc_id_fkey FOREIGN KEY (doc_id)
@@ -154,7 +323,7 @@ COMMENT ON TABLE doc.doc_vers IS 'Версия документации.';
 
 CREATE TABLE IF NOT EXISTS doc.doc_file
 (
-    doc_file_id integer NOT NULL DEFAULT nextval('doc.file_file_id_seq'::regclass),
+    doc_file_id serial NOT NULL,
     doc_file_name text COLLATE pg_catalog."default" NOT NULL,
     doc_file_abspath text COLLATE pg_catalog."default" NOT NULL,
     doc_file_relpath text COLLATE pg_catalog."default",
@@ -188,7 +357,7 @@ COMMENT ON TABLE doc.tag IS 'Справочник тегов.';
 
 CREATE TABLE IF NOT EXISTS doc.content
 (
-    cont_id integer NOT NULL DEFAULT nextval('doc.content_cont_id_seq'::regclass),
+    cont_id serial NOT NULL,
     cont_idp integer,
     doc_file_id integer,
     tag_id integer,
@@ -210,6 +379,7 @@ ALTER TABLE IF EXISTS doc.content
 ALTER TABLE IF EXISTS doc.content
     ADD CONSTRAINT content_tag_id_fkey FOREIGN KEY (tag_id)
     REFERENCES doc.tag (tag_id) MATCH SIMPLE;
+
 
 
 
