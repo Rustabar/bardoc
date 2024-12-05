@@ -16,19 +16,8 @@ CREATE DATABASE bardoc
 */
 --\c bardoc
 
-drop table if exists doc.content;
-drop table if exists doc.doc_file;
-drop table if exists doc.doc_vers;
-drop table if exists prod.prod_vers;
-
-drop table if exists doc.doc;
-
-drop table if exists prod.prod;
-
-drop table if exists doc.tag;
-
-drop schema if exists prod;
-drop schema if exists doc;
+drop schema if exists doc cascade;
+drop schema if exists prod cascade;
 
 --####################################################################################################################
 --####################################################################################################################
@@ -269,7 +258,7 @@ create schema doc;
 CREATE TABLE IF NOT EXISTS doc.doc
 (
     doc_id serial NOT NULL,
-    prod_id integer NOT NULL,
+    prod_vers_id integer NOT NULL,
     doc_name character varying(256) COLLATE pg_catalog."default" NOT NULL,
     doc_desc character varying(1000) COLLATE pg_catalog."default",
     doc_created_at timestamp without time zone DEFAULT now(),
@@ -280,11 +269,11 @@ ALTER TABLE IF EXISTS doc.doc
     ADD CONSTRAINT doc_pkey PRIMARY KEY (doc_id);
 
 ALTER TABLE IF EXISTS doc.doc
-    ADD CONSTRAINT doc_prod_id_fkey FOREIGN KEY (prod_id)
-    REFERENCES prod.prod (prod_id) MATCH SIMPLE;
+    ADD CONSTRAINT doc_prod_vers_id_fkey FOREIGN KEY (prod_vers_id)
+    REFERENCES prod.prod_vers (prod_vers_id) MATCH SIMPLE;
 
 ALTER TABLE IF EXISTS doc.doc
-    ADD CONSTRAINT doc.doc_prod_id_doc_name_key UNIQUE (prod_id, doc_name);
+    ADD CONSTRAINT doc_prod_vers_id_doc_name_key UNIQUE (prod_vers_id, doc_name);
 	
 COMMENT ON TABLE doc.doc IS 'Документация.';
 
@@ -297,7 +286,6 @@ CREATE TABLE IF NOT EXISTS doc.doc_vers
 (
     doc_vers_id serial NOT NULL,
     doc_id integer NOT NULL,
-    prod_vers_id integer NOT NULL,
     doc_vers_num character varying(100) COLLATE pg_catalog."default" NOT NULL,
     doc_vers_descr character varying(1000) COLLATE pg_catalog."default",
     doc_vers_created_at timestamp without time zone DEFAULT now(),
@@ -306,10 +294,6 @@ CREATE TABLE IF NOT EXISTS doc.doc_vers
 
 ALTER TABLE IF EXISTS doc.doc_vers
     ADD CONSTRAINT doc_vers_pkey PRIMARY KEY (doc_vers_id);
-
-ALTER TABLE IF EXISTS doc.doc_vers
-    ADD CONSTRAINT doc_vers_prod_vers_id_fkey FOREIGN KEY (prod_vers_id)
-    REFERENCES prod.prod_vers (prod_vers_id) MATCH SIMPLE;
 
 ALTER TABLE IF EXISTS doc.doc_vers
     ADD CONSTRAINT doc_vers_doc_id_fkey FOREIGN KEY (doc_id)
@@ -359,7 +343,7 @@ CREATE TABLE IF NOT EXISTS doc.content
 (
     cont_id serial NOT NULL,
     cont_idp integer,
-    doc_file_id integer,
+    doc_vers_id integer,
     tag_id integer,
     content text COLLATE pg_catalog."default",
     cont_lvl integer,
@@ -373,8 +357,8 @@ ALTER TABLE IF EXISTS doc.content
     ADD CONSTRAINT content_pkey PRIMARY KEY (cont_id);
 
 ALTER TABLE IF EXISTS doc.content
-    ADD CONSTRAINT content_doc_file_id_fkey FOREIGN KEY (doc_file_id)
-    REFERENCES doc.doc_file (doc_file_id) MATCH SIMPLE;
+    ADD CONSTRAINT content_doc_vers_id_fkey FOREIGN KEY (doc_vers_id)
+    REFERENCES doc.doc_vers (doc_vers_id) MATCH SIMPLE;
 
 ALTER TABLE IF EXISTS doc.content
     ADD CONSTRAINT content_tag_id_fkey FOREIGN KEY (tag_id)

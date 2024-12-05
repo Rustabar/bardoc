@@ -1,2 +1,2 @@
 # bardoc
-some docs
+some expirements with Python & Postgresql.
