@@ -24,7 +24,9 @@ def sgml_parse(fullFileName):
 
     #firstLine = sgmlFile.readline()
     fileRelPath = regRelPath.findall(sgmlFile.readline())
-    print(fileRelPath)
+    #print(fileRelPath)
+
+    doc_file_id = db.ins_doc_file (os.path.basename(fileRelPath[0]), fileRelPath[0], fullFileName )
 
     #Читаем содержимое файла
     content = sgmlFile.read()
@@ -56,6 +58,11 @@ def sgml_parse(fullFileName):
 db.ins_prod("Postgresql", "PG")
 
 db.ins_prod_vers("PG", "17.0", "bla bla bla")
+
+db.ins_doc("PG", "17.0", 'Documentation', 'ALL_DOC', ' ole ole ole')
+
+db.ins_doc_vers("PG_17.0_ALL_DOC", "1.0", "wow wow wow")
+
 
 #...
 # Здесь будет цикл по всем файлам документации
